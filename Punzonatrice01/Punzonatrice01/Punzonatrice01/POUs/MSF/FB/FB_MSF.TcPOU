@@ -1,0 +1,453 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_MSF" Id="{d81b6d80-009e-42f0-91b3-072a94ae73e7}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MSF
+VAR_INPUT
+	// sensori bordo macchina
+	I1		:	BOOL;
+	I2		: 	BOOL;
+	I3		:	BOOL;
+	I4		: 	BOOL;
+	
+	// pulsanti di comando
+	Start	: 	BOOL;
+	Stop	:	BOOL;
+	Ack		: 	BOOL;
+	Emg		: 	BOOL;
+	
+END_VAR
+VAR_OUTPUT
+	// attuatori
+	Q1		:	BOOL;
+	Q2		:	BOOL;
+	Q3		:	BOOL;
+	Q4		:	BOOL;
+
+	// indicatori pannello indicatore
+	L_START	: 	BOOL;
+	L_STOP	: 	BOOL;
+	L_ACK	: 	BOOL;
+END_VAR
+VAR
+	// abilitazione := Stop AND Emg;
+	enable 	:	BOOL;
+	
+	// variabile di stato
+	stato	:	tStatiMSF	:=	tStatiMSF.S0_Spento;
+	
+	// timer per gli stati
+	T34		: 	TON();
+	T82		:	TON();
+	TE		:	TON();
+	TA		:	TON();
+	
+	// lampeggiatore
+	osc		: 	FB_Blink();
+	fbBlink :   BLINK;
+	// richiesta di arresto a fine ciclo
+	mArresto	:	BOOL;
+
+	// pezzo carico
+	mPezzoCarico	:	BOOL;
+	// transizione S0->S1
+	tr_S0_S1	: 	BOOL;
+	// transizione S0->S1
+	tr_S0_S2	: 	BOOL;
+	// transizione S1->S0
+	tr_S1_S0	:	BOOL;
+	// transizione S1->S2
+	tr_S1_S2	: 	BOOL;
+	//transizione da S2->S3
+	tr_S2_S0	:	BOOL;
+	// transizione S2->S3
+	tr_S2_S3	: 	BOOL;
+	// transizione S3->S4
+	tr_S3_S4	: 	BOOL;
+	// transizione S4->S5
+	tr_S4_S5	: 	BOOL;
+	// transizione S4->S5
+	tr_S4_SE	: 	BOOL;
+	// transizione S5->S6
+	tr_S5_S6	: 	BOOL;
+	// transizione S6->S7
+	tr_S6_S7	: 	BOOL;
+	// transizione S7->S8
+	tr_S7_S8	: 	BOOL;
+	// transizione S7->SE
+	tr_S7_SE	: 	BOOL;
+	// transizione S8->S0
+	tr_S8_S0	: 	BOOL;
+	// transizione S8->S2
+	tr_S8_S2	: 	BOOL;
+	// transizione SE->SA
+	tr_SE_SA1	: 	BOOL;
+	// transizione SA1->SA2
+	tr_SA1_SA2	: 	BOOL;
+	// transizione SA2->S0
+	tr_SA2_S0	: 	BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// 1. aggiornamento delle condizioni di abilitazione (stop, allatmi, ecc)
+	enable	:=	Stop AND Emg;
+	
+// 2. aggiornamento di timers, contatori, triggers sui fronti
+	T34( IN := (stato = tStatiMSF.S3_PausaIngresso), PT := T#2S );
+	T82( IN := (stato = tStatiMSF.S8_PausaScarico), PT := T#3S );
+	TE( IN := (stato = tStatiMSF.S4_Caricamento), PT := T#5S );
+	TE( IN := (stato = tStatiMSF.S7_Scarico), PT := T#5S );
+	TE( IN := (stato = tStatiMSF.SA2_UscitaPezzo), PT := T#5S );
+	TA( IN := (stato = tStatiMSF.SA1_RipristinoMandrino), PT := T#2S );
+	osc(enable := TRUE, t_high := T#1S, t_low := T#500MS);
+// 3. valutazione della condizione di arresto nominale
+	IF( Stop = FALSE AND Emg = TRUE ) THEN 
+		mArresto := TRUE;
+	END_IF
+	
+// 4. valutazione della condizione di arresto di emergenza
+	IF( Emg = FALSE AND (stato <> tStatiMSF.S0_Spento)) THEN
+		stato := tStatiMSF.SE_Emergenza;
+	END_IF
+	
+	
+// 5. aggiornamento delle condizioni di transito di stato
+	tr_S0_S1 :=	NOT(I3) AND Start AND enable;
+	// transizione S0->S2
+	tr_S0_S2 := I3 AND Start AND enable; 
+	// transizione S1->S0
+	tr_S1_S0 := mArresto AND Emg;	
+	// transizione S1->S2
+	tr_S1_S2 := I3 AND Emg;
+	//transizione da S2->S3
+	tr_S2_S0 := mArresto AND Emg;
+	// transizione S2->S3
+	tr_S2_S3 := NOT(I1) AND Emg;
+	// transizione S3->S4
+	tr_S3_S4 := T34.Q AND NOT(I1) AND Emg;
+	// transizione S4->S5
+	tr_S4_S5 := NOT(I2) AND Emg; 
+	// transizione S4->S5
+	tr_S4_SE := TE.Q AND Emg;	
+	// transizione S5->S6
+	tr_S5_S6 := I4 AND Emg; 
+	// transizione S6->S7
+	tr_S6_S7 := I3 AND Emg;
+	// transizione S4->S5
+	tr_S7_SE := TE.Q AND Emg;
+	// transizione S7->S8
+	tr_S7_S8 := NOT(I1) AND Emg;
+	// transizione S8->S0
+	tr_S8_S0 := mArresto AND Emg ;
+	// transizione S8->S2
+	tr_S8_S2 := T82.Q AND NOT(mArresto) AND I1 AND enable;
+	// transizione SE->SA
+	tr_SE_SA1 := EMG AND Ack;
+	// transizione SE->SA
+	tr_SA1_SA2 := TA.Q;
+	// transizione SA->S0
+	tr_SA2_S0 := (mPezzoCarico AND NOT(I1) AND I3) OR (NOT(mPezzoCarico) AND I3)OR(TE.Q);
+
+// 6. switch-case della MSF
+	CASE stato OF
+	tStatiMSF.S0_Spento:
+	
+
+    // comando uscite
+	L_START := FALSE;
+	L_STOP := TRUE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	// reset memoria
+	mArresto := FALSE;
+	mPezzoCarico := FALSE;
+	IF tr_S0_S1 THEN
+		stato := tStatiMSF.S1_RipristinoMandrino;
+	ELSIF tr_S0_S2 THEN
+		stato := tStatiMSF.S2_AttesaPezzo;
+	END_IF
+	
+	tStatiMSF.S1_RipristinoMandrino:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := osc.q;// lamepggio
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := NOT(I3);
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := FALSE;
+	IF tr_S1_S2 THEN
+		stato := tStatiMSF.S2_AttesaPezzo;
+	ELSIF tr_S1_S0 THEN
+		stato := tStatiMSF.S0_Spento;
+	END_IF
+	
+	tStatiMSF.S2_AttesaPezzo:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := FALSE;
+	IF tr_S2_S3 THEN
+		stato := tStatiMSF.S3_PausaIngresso;
+	ELSIF tr_S2_S0 THEN
+		stato := tStatiMSF.S0_Spento;
+	END_IF
+	
+	tStatiMSF.S3_PausaIngresso:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := TRUE;
+	IF tr_S3_S4 THEN
+		stato := tStatiMSF.S4_Caricamento;
+	END_IF
+	
+	tStatiMSF.S4_Caricamento:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := TRUE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := TRUE;
+	IF tr_S4_S5 THEN
+		stato := tStatiMSF.S5_DiscesaMandrino;
+	ELSIF tr_S4_SE THEN
+		stato := tStatiMSF.SE_Emergenza;
+	 
+	END_IF
+	
+	tStatiMSF.S5_DiscesaMandrino:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := NOT(I4);
+	// set memoria
+	mPezzoCarico := TRUE;
+	IF tr_S5_S6 THEN
+		stato := tStatiMSF.S6_SalitaMandrino;
+	END_IF
+		
+	tStatiMSF.S6_SalitaMandrino:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := NOT(I3);
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := TRUE;
+	IF tr_S6_S7 THEN
+		stato := tStatiMSF.S7_Scarico;
+	END_IF
+		
+	tStatiMSF.S7_Scarico:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := TRUE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := TRUE;
+	IF tr_S7_S8 THEN
+		stato := tStatiMSF.S8_PausaScarico;
+	ELSIF tr_S7_SE THEN
+		stato := tStatiMSF.SE_Emergenza;
+	END_IF
+		
+	tStatiMSF.S8_PausaScarico:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := FALSE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	// set memoria
+	mPezzoCarico := FALSE;
+	IF tr_S8_S0 THEN
+		stato := tStatiMSF.S0_Spento;
+	ELSIF tr_S8_S2 THEN
+		stato := tStatiMSF.S2_AttesaPezzo;
+	END_IF
+		
+	tStatiMSF.SE_Emergenza:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := osc.q; // lampeggio
+	L_ACK := TRUE;
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := FALSE;
+	Q4 := FALSE;
+
+	IF tr_SE_SA1 THEN
+		stato := tStatiMSF.SA1_RipristinoMandrino;
+	END_IF
+		
+	tStatiMSF.SA1_RipristinoMandrino:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := osc.q; // lampeggio
+	Q1 := FALSE;
+	Q2 := FALSE;
+	Q3 := NOT(I3);
+	Q4 := FALSE;
+	
+	IF tr_SA1_SA2 THEN
+		stato := tStatiMSF.SA2_UscitaPezzo;
+	END_IF
+
+	tStatiMSF.SA2_UscitaPezzo:
+	// comando uscite
+	L_START := TRUE;
+	L_STOP := FALSE;
+	L_ACK := osc.q; // lampeggio
+	Q1 := FALSE;
+	Q2 := mPezzoCarico;
+	Q3 := FALSE;
+	Q4 := FALSE;
+	
+	IF tr_SA2_S0 THEN
+		stato := tStatiMSF.S0_Spento;
+	END_IF
+ELSE
+	stato := tStatiMSF.SE_Emergenza;
+END_CASE]]></ST>
+    </Implementation>
+    <LineIds Name="FB_MSF">
+      <LineId Id="9" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="543" Count="0" />
+      <LineId Id="567" Count="0" />
+      <LineId Id="581" Count="0" />
+      <LineId Id="568" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="64" Count="2" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="67" Count="2" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="670" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="167" Count="1" />
+      <LineId Id="462" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="461" Count="0" />
+      <LineId Id="170" Count="1" />
+      <LineId Id="458" Count="0" />
+      <LineId Id="457" Count="0" />
+      <LineId Id="456" Count="0" />
+      <LineId Id="173" Count="3" />
+      <LineId Id="561" Count="1" />
+      <LineId Id="177" Count="4" />
+      <LineId Id="571" Count="0" />
+      <LineId Id="569" Count="0" />
+      <LineId Id="182" Count="6" />
+      <LineId Id="564" Count="1" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="192" Count="1" />
+      <LineId Id="668" Count="0" />
+      <LineId Id="667" Count="0" />
+      <LineId Id="194" Count="6" />
+      <LineId Id="250" Count="4" />
+      <LineId Id="256" Count="1" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="202" Count="7" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="260" Count="1" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="262" Count="0" />
+      <LineId Id="540" Count="0" />
+      <LineId Id="539" Count="0" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="212" Count="7" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="276" Count="2" />
+      <LineId Id="541" Count="1" />
+      <LineId Id="279" Count="0" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="222" Count="7" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="280" Count="0" />
+      <LineId Id="282" Count="3" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="232" Count="7" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="286" Count="0" />
+      <LineId Id="288" Count="2" />
+      <LineId Id="575" Count="0" />
+      <LineId Id="577" Count="0" />
+      <LineId Id="576" Count="0" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="240" Count="0" />
+      <LineId Id="242" Count="7" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="298" Count="0" />
+      <LineId Id="294" Count="3" />
+      <LineId Id="299" Count="10" />
+      <LineId Id="311" Count="2" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="315" Count="10" />
+      <LineId Id="327" Count="2" />
+      <LineId Id="578" Count="1" />
+      <LineId Id="314" Count="0" />
+      <LineId Id="331" Count="10" />
+      <LineId Id="343" Count="2" />
+      <LineId Id="378" Count="1" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="347" Count="9" />
+      <LineId Id="359" Count="2" />
+      <LineId Id="346" Count="0" />
+      <LineId Id="363" Count="9" />
+      <LineId Id="375" Count="2" />
+      <LineId Id="362" Count="0" />
+      <LineId Id="556" Count="0" />
+      <LineId Id="544" Count="11" />
+      <LineId Id="380" Count="3" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

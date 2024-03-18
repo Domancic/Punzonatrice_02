@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MAIN" Id="{76be1a6d-f553-41ad-bce2-8894508df633}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+	nastro1	: FB_MSF();
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[nastro1(
+	I1:= GVL_IO.I1, 
+	I2:= GVL_IO.I2, 
+	I3:= GVL_IO.I3, 
+	I4:= GVL_IO.I4, 
+	Start:= GVL_IO.Start, 
+	Stop:= GVL_IO.Stop, 
+	Ack:= GVL_IO.Ack, 
+	Emg:= GVL_IO.Emg, 
+	Q1=> GVL_IO.Q1, 
+	Q2=> GVL_IO.Q2, 
+	Q3=> GVL_IO.Q3, 
+	Q4=> GVL_IO.Q4, 
+	L_START=> GVL_IO.L_START, 
+	L_STOP=> GVL_IO.L_STOP, 
+	L_ACK=> GVL_IO.L_ACK);]]></ST>
+    </Implementation>
+    <LineIds Name="MAIN">
+      <LineId Id="8" Count="14" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

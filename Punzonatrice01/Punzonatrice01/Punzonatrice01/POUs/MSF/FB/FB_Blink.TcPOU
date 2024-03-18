@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="FB_Blink" Id="{9cc890a6-b8e6-47c4-af91-ae047f12838c}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_Blink
+VAR_INPUT
+	enable	:	BOOL;
+	t_high	:	TIME;
+	t_low	:	TIME;
+	
+END_VAR
+VAR_OUTPUT
+	q	:	BOOL;
+END_VAR
+VAR
+	T1		: 	TON();
+	T2		:	TON();
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[T1(IN := (enable AND NOT(T2.Q ) ), PT := t_low);
+T2(IN := T1.Q, PT	:= t_high ); 
+q := T1.Q;]]></ST>
+    </Implementation>
+    <LineIds Name="FB_Blink">
+      <LineId Id="9" Count="1" />
+      <LineId Id="16" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

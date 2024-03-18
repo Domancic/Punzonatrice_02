@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="GVL_IO" Id="{2f73abc0-5078-4180-a25a-db799fbc6f4f}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+	// sensori bordo macchina
+    I1    AT %I*    :    BOOL;
+    I2    AT %I*    :    BOOL;
+    I3    AT %I*    :    BOOL;
+    I4    AT %I*    :    BOOL;
+    // pulsanti di comando
+    Start    AT %I*    :    BOOL;
+    Stop    AT %I*    :    BOOL;
+    Ack        AT %I*    :    BOOL;
+    Emg        AT %I*    :    BOOL;
+ 
+    // attuatori
+    Q1    AT %Q*    :    BOOL;
+    Q2    AT %Q*    :    BOOL;
+    Q3    AT %Q*    :    BOOL;
+    Q4    AT %Q*    :    BOOL;
+    // indicatori pannello operatore
+    L_START    AT %Q*    :    BOOL;
+    L_STOP    AT %Q*    :    BOOL;
+    L_ACK    AT %Q*    :    BOOL;    
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>
